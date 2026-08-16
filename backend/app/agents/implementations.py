@@ -13,12 +13,14 @@ from app.agents.llm.structured import structured_complete
 from app.agents.prompts import load_prompt, render_prompt
 from app.agents.schemas import (
     AgentDecision,
+    ContrarianAnalysis,
     EligibilityAssessment,
     InvestigationPlan,
     ObjectiveUnderstanding,
     ProfileMatch,
     ResearchDossier,
     RiskAssessment,
+    VerificationResult,
 )
 from app.models.enums import Recommendation
 
@@ -242,6 +244,72 @@ class DecisionAgent(BaseAgent[_DecisionInput, AgentDecision]):
             why_me=narrative.why_me,
             what_could_go_wrong=narrative.what_could_go_wrong,
         )
+
+
+class _ContrarianInput(BaseModel):
+    opportunity_id: uuid.UUID
+    title: str
+    recommendation: Recommendation
+    overall_score: float
+    confidence: float
+    evaluation_summary: str
+
+
+class ContrarianAgent(BaseAgent[_ContrarianInput, ContrarianAnalysis]):
+    card = AgentCard(
+        name="contrarian",
+        version="1",
+        description="Argue against the current recommendation.",
+        capabilities=["contrarian"],
+        cost_class="reasoning",
+    )
+
+    async def run(self, payload: _ContrarianInput, ctx: RunContext) -> ContrarianAnalysis:
+        prompt = render_prompt(
+            load_prompt("contrarian", "analyze"),
+            title=payload.title,
+            recommendation=payload.recommendation.value,
+            score=f"{payload.overall_score:.1f}",
+            confidence=f"{payload.confidence:.2f}",
+            evaluation=payload.evaluation_summary,
+        )
+        result = await structured_complete(
+            ctx.llm,
+            ContrarianAnalysis,
+            "Contrarian Agent\n" + prompt,
+            task_class="reasoning",
+        )
+        return result.model_copy(update={"opportunity_id": payload.opportunity_id})
+
+
+class _VerificationInput(BaseModel):
+    opportunity_id: uuid.UUID
+    title: str
+    claims: list[str]
+
+
+class VerificationAgent(BaseAgent[_VerificationInput, VerificationResult]):
+    card = AgentCard(
+        name="verification",
+        version="1",
+        description="Verify high-impact claims with calibrated confidence.",
+        capabilities=["verify"],
+        cost_class="reasoning",
+    )
+
+    async def run(self, payload: _VerificationInput, ctx: RunContext) -> VerificationResult:
+        prompt = render_prompt(
+            load_prompt("verification", "verify"),
+            title=payload.title,
+            claims="\n".join(f"- {claim}" for claim in payload.claims) or "- none",
+        )
+        result = await structured_complete(
+            ctx.llm,
+            VerificationResult,
+            "Verification Agent\n" + prompt,
+            task_class="reasoning",
+        )
+        return result.model_copy(update={"opportunity_id": payload.opportunity_id})
 
 
 class _DecisionNarrative(BaseModel):

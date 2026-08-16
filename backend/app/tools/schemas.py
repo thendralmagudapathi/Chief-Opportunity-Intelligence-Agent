@@ -44,6 +44,7 @@ class CheckEligibilityArgs(BaseModel):
 class SearchUserProfileArgs(BaseModel):
     query: str = Field(min_length=1, max_length=500)
     top_k: int = Field(default=8, ge=1, le=50)
+    expansion_terms: list[str] = Field(default_factory=list, max_length=8)
 
 
 class SearchUserDocumentsArgs(BaseModel):

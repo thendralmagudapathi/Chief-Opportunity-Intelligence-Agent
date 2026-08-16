@@ -94,6 +94,31 @@ def _response_for_prompt(prompt: str, *, task_class: TaskClass) -> dict[str, Any
             "why_me": ["Skills align with requirements."],
             "what_could_go_wrong": ["Competition may be high."],
         }
+    if "contrariananalysis" in lowered or "contrarian agent" in lowered:
+        return {
+            "opportunity_id": "00000000-0000-0000-0000-000000000001",
+            "contradicting_evidence": ["Competition is intense for this role."],
+            "weak_assumptions": ["Assumes remote work is available."],
+            "failure_modes": ["Application may be deprioritised against senior hires."],
+            "opportunity_cost": "Time spent here may displace stronger matches.",
+            "verdict_pressure": 0.62,
+        }
+    if "verificationresult" in lowered or "verification agent" in lowered:
+        return {
+            "opportunity_id": "00000000-0000-0000-0000-000000000001",
+            "claims": [
+                {
+                    "claim": "Role aligns with stated requirements.",
+                    "claim_type": "INFERENCE",
+                    "confidence": 0.72,
+                    "supporting_sources": ["profile overlap"],
+                    "contradicting_sources": [],
+                    "unresolved": False,
+                }
+            ],
+            "unresolved_high_impact_count": 0,
+            "overall_confidence": 0.72,
+        }
     if task_class == "extract":
         return {"title": "Extracted title", "organization_name": "Example GmbH"}
     return {"message": "acknowledged"}

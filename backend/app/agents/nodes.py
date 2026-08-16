@@ -8,7 +8,9 @@ from typing import Any
 from sqlalchemy import select
 
 from app.agents.context import RunContext
+from app.agents.decision_gates import apply_contrarian_pressure
 from app.agents.implementations import (
+    ContrarianAgent,
     DecisionAgent,
     MatchingAgent,
     QualificationAgent,
@@ -16,6 +18,8 @@ from app.agents.implementations import (
     RiskAgent,
     SupervisorPlanAgent,
     SupervisorUnderstandAgent,
+    VerificationAgent,
+    _ContrarianInput,
     _DecisionInput,
     _MatchInput,
     _ObjectiveInput,
@@ -23,19 +27,23 @@ from app.agents.implementations import (
     _QualifyInput,
     _ResearchInput,
     _RiskInput,
+    _VerificationInput,
 )
 from app.agents.schemas import (
     AgentDecision,
     CandidateEvaluation,
+    ContrarianAnalysis,
     FinalOpportunityReport,
     InvestigationPlan,
     ObjectiveUnderstanding,
 )
 from app.agents.state import InvestigationState
-from app.models.enums import AgentTaskStatus, Recommendation
+from app.memory.service import MemoryService
+from app.models.enums import AgentTaskStatus, MemoryType, Recommendation
 from app.models.goal import Goal
 from app.models.opportunity import Opportunity
 from app.models.user import UserProfile
+from app.retrieval.expansion import expand_query
 from app.services.agent_run_service import AgentRunService
 from app.services.lifecycle import INACTIVE
 from app.services.retrieval_service import build_retrieval_service
@@ -70,46 +78,76 @@ async def understand_node(state: InvestigationState, ctx: RunContext) -> dict[st
 
 async def load_context_node(state: InvestigationState, ctx: RunContext) -> dict[str, Any]:
     ctx.emit("stage", _event("load_context", "running", "Loading profile context"))
+    understanding = None
+    if state.get("understanding"):
+        understanding = ObjectiveUnderstanding.model_validate(state["understanding"])
+
+    memory_service = MemoryService(ctx.session)
+    memory_rows = await memory_service.recall(ctx.user_id, MemoryType.SEMANTIC, limit=5)
+    memory_rows.extend(await memory_service.recall(ctx.user_id, MemoryType.EPISODIC, limit=3))
+    memory_context = [
+        {
+            "type": row.memory_type.value,
+            "key": row.key,
+            "content": row.content,
+            "source_ref": row.source_ref,
+        }
+        for row in memory_rows
+    ]
+
+    expansion_terms = understanding.keywords if understanding else []
+    expanded_queries = expand_query(state["objective"], understanding, max_variants=3)
+
     if ctx.tools is not None and ctx.tool_ctx is not None:
         outcome = await ctx.tools.invoke(
             "search_user_profile",
-            {"query": state["objective"], "top_k": ctx.settings.rag.rerank_top_n},
+            {
+                "query": state["objective"],
+                "top_k": ctx.settings.rag.rerank_top_n,
+                "expansion_terms": expansion_terms,
+            },
             ctx.tool_ctx,
         )
         if not outcome.ok or outcome.data is None:
             return {
                 "profile_context": [],
+                "memory_context": memory_context,
+                "expanded_queries": expanded_queries,
                 "degraded": True,
                 "errors": [outcome.error or "Profile search failed"],
                 "events": [_event("load_context", "failed", "Profile search failed")],
             }
         passages = outcome.data.get("passages", [])
+        degraded = bool(outcome.data.get("degraded"))
     else:
         retrieval = build_retrieval_service(ctx.session, ctx.settings)
         result = await retrieval.search_profile(
-            user_id=ctx.user_id, query=state["objective"], rerank=True
+            user_id=ctx.user_id,
+            query=state["objective"],
+            understanding=understanding,
+            rerank=True,
         )
         passages = [
             {"content": passage.content, "score": passage.score, "channel": passage.channel}
             for passage in result.passages
         ]
         degraded = result.degraded
-        ctx.emit(
-            "stage",
-            _event("load_context", "done", "Profile context loaded", passages=len(passages)),
-        )
-        return {
-            "profile_context": passages,
-            "degraded": degraded,
-            "events": [_event("load_context", "done", f"Loaded {len(passages)} passages")],
-        }
+
     ctx.emit(
         "stage",
-        _event("load_context", "done", "Profile context loaded", passages=len(passages)),
+        _event(
+            "load_context",
+            "done",
+            "Profile context loaded",
+            passages=len(passages),
+            memory=len(memory_context),
+        ),
     )
     return {
         "profile_context": passages,
-        "degraded": bool(outcome.data.get("degraded")),
+        "memory_context": memory_context,
+        "expanded_queries": expanded_queries,
+        "degraded": degraded,
         "events": [_event("load_context", "done", f"Loaded {len(passages)} passages")],
     }
 
@@ -318,19 +356,36 @@ async def decide_node(state: InvestigationState, ctx: RunContext) -> dict[str, A
         recommendation = Recommendation(score["recommendation"])
         if eligibility.verdict == "ineligible":
             recommendation = Recommendation.INELIGIBLE
+
+        counterpoint_raw = state.get("counterpoints", {}).get(opp_id)
+        counterpoint = (
+            ContrarianAnalysis.model_validate(counterpoint_raw) if counterpoint_raw else None
+        )
+        recommendation, confidence, _changed = apply_contrarian_pressure(
+            recommendation,
+            float(score["confidence"]),
+            counterpoint,
+        )
+
         decision = await decision_agent.run(
             _DecisionInput(
                 opportunity_id=uuid.UUID(opp_id),
                 title=candidate["title"],
                 recommendation=recommendation,
                 overall_score=score["overall_score"],
-                confidence=score["confidence"],
+                confidence=confidence,
                 eligibility=eligibility,
                 risk=risk,
             ),
             ctx,
         )
         payload = decision.model_dump(mode="json")
+        payload["confidence"] = confidence
+        payload["recommendation"] = recommendation.value
+        if counterpoint is not None:
+            payload["what_could_go_wrong"] = list(
+                dict.fromkeys(payload.get("what_could_go_wrong", []) + counterpoint.failure_modes)
+            )
         decisions.append(payload)
 
     ctx.emit("stage", _event("decide", "done", f"{len(decisions)} recommendations"))
@@ -342,13 +397,29 @@ async def decide_node(state: InvestigationState, ctx: RunContext) -> dict[str, A
 
 async def report_node(state: InvestigationState, ctx: RunContext) -> dict[str, Any]:
     recommendations = [AgentDecision.model_validate(item) for item in state.get("decisions", [])]
+    counterpoints = [
+        ContrarianAnalysis.model_validate(item)
+        for item in state.get("counterpoints", {}).values()
+    ]
     report = FinalOpportunityReport(
         objective=state["objective"],
         degraded=bool(state.get("degraded")),
         iterations=int(state.get("iterations", 0)),
         recommendations=recommendations,
+        counterpoints=counterpoints,
         partial_results=bool(state.get("errors")),
     )
+
+    memory = MemoryService(ctx.session)
+    summary = ", ".join(item.recommendation.value for item in recommendations[:3]) or "none"
+    await memory.write_episodic(
+        user_id=ctx.user_id,
+        content=f"Investigation '{state['objective'][:120]}' -> {summary}",
+        provenance={"run_id": state.get("run_id"), "trace_id": state.get("trace_id")},
+        source_ref=state.get("run_id"),
+        importance=0.7 if recommendations else 0.3,
+    )
+
     ctx.emit("stage", _event("report", "done", "Investigation complete"))
     return {
         "report": report.model_dump(mode="json"),
@@ -370,11 +441,99 @@ async def replan_node(state: InvestigationState, ctx: RunContext) -> dict[str, A
 
 
 async def verify_node(state: InvestigationState, ctx: RunContext) -> dict[str, Any]:
-    unresolved = 1 if state.get("iterations", 0) == 0 and state.get("candidates") else 0
-    ctx.emit("stage", _event("verify", "done", "Verification complete"))
+    ctx.emit("stage", _event("verify", "running", "Verifying high-impact claims"))
+    runs = AgentRunService(ctx.session)
+    task = await runs.start_task(ctx.run_id, agent_name="verification", capability="verify")
+    agent = VerificationAgent()
+    verifications: dict[str, Any] = {}
+    unresolved_total = 0
+
+    for candidate in state.get("candidates", []):
+        evaluation = state.get("evaluations", {}).get(candidate["id"], {})
+        dossier = evaluation.get("dossier", {})
+        claims = list(dossier.get("key_claims", []))
+        eligibility = evaluation.get("eligibility", {})
+        for requirement in eligibility.get("requirements", []):
+            if requirement.get("state") == "met":
+                claims.append(str(requirement.get("name", "requirement")))
+        result = await agent.run(
+            _VerificationInput(
+                opportunity_id=uuid.UUID(candidate["id"]),
+                title=candidate["title"],
+                claims=[str(item) for item in claims[:8]],
+            ),
+            ctx,
+        )
+        verifications[candidate["id"]] = result.model_dump(mode="json")
+        unresolved_total += result.unresolved_high_impact_count
+
+    await runs.finish_task(
+        task.id,
+        status=AgentTaskStatus.SUCCEEDED,
+        output={"unresolved": unresolved_total},
+    )
+    ctx.emit(
+        "stage",
+        _event("verify", "done", "Verification complete", unresolved=unresolved_total),
+    )
     return {
-        "unresolved_high_impact_claims": unresolved,
-        "events": [_event("verify", "done", "Verification complete")],
+        "verifications": verifications,
+        "unresolved_high_impact_claims": unresolved_total,
+        "events": [_event("verify", "done", f"{unresolved_total} unresolved claims")],
+    }
+
+
+async def contrarian_node(state: InvestigationState, ctx: RunContext) -> dict[str, Any]:
+    ctx.emit("stage", _event("contrarian", "running", "Stress-testing recommendations"))
+    runs = AgentRunService(ctx.session)
+    task = await runs.start_task(ctx.run_id, agent_name="contrarian", capability="contrarian")
+    agent = ContrarianAgent()
+    counterpoints: dict[str, Any] = {}
+    adjusted_scores = dict(state.get("scores", {}))
+
+    ranked = sorted(
+        adjusted_scores.items(),
+        key=lambda item: item[1]["overall_score"],
+        reverse=True,
+    )
+    for opp_id, score in ranked[:5]:
+        candidate = next((c for c in state.get("candidates", []) if c["id"] == opp_id), None)
+        if candidate is None:
+            continue
+        evaluation = state.get("evaluations", {}).get(opp_id, {})
+        summary = evaluation.get("match", {}).get("rationale", candidate["title"])
+        analysis = await agent.run(
+            _ContrarianInput(
+                opportunity_id=uuid.UUID(opp_id),
+                title=candidate["title"],
+                recommendation=Recommendation(score["recommendation"]),
+                overall_score=float(score["overall_score"]),
+                confidence=float(score["confidence"]),
+                evaluation_summary=str(summary),
+            ),
+            ctx,
+        )
+        counterpoints[opp_id] = analysis.model_dump(mode="json")
+        updated = dict(score)
+        if analysis.verdict_pressure >= 0.4:
+            updated["confidence"] = max(
+                0.0, float(updated["confidence"]) * (1.0 - analysis.verdict_pressure * 0.25)
+            )
+        adjusted_scores[opp_id] = updated
+
+    await runs.finish_task(
+        task.id,
+        status=AgentTaskStatus.SUCCEEDED,
+        output={"counterpoints": len(counterpoints)},
+    )
+    ctx.emit(
+        "stage",
+        _event("contrarian", "done", f"{len(counterpoints)} counter-analyses"),
+    )
+    return {
+        "counterpoints": counterpoints,
+        "scores": adjusted_scores,
+        "events": [_event("contrarian", "done", f"{len(counterpoints)} counter-analyses")],
     }
 
 

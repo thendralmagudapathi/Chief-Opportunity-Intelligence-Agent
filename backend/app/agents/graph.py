@@ -9,6 +9,7 @@ from langgraph.graph import END, StateGraph
 
 from app.agents.context import RunContext
 from app.agents.nodes import (
+    contrarian_node,
     decide_node,
     discover_node,
     evaluate_node,
@@ -55,6 +56,9 @@ def build_investigation_graph(ctx: RunContext) -> Any:
     async def score(state: InvestigationState) -> dict[str, Any]:
         return await score_node(state, ctx)
 
+    async def contrarian(state: InvestigationState) -> dict[str, Any]:
+        return await contrarian_node(state, ctx)
+
     async def decide(state: InvestigationState) -> dict[str, Any]:
         return await decide_node(state, ctx)
 
@@ -70,6 +74,7 @@ def build_investigation_graph(ctx: RunContext) -> Any:
     graph.add_node("verify", verify)
     graph.add_node("replan", replan)
     graph.add_node("score", score)
+    graph.add_node("contrarian", contrarian)
     graph.add_node("decide", decide)
     graph.add_node("report", report)
 
@@ -94,7 +99,8 @@ def build_investigation_graph(ctx: RunContext) -> Any:
         route_after_replan,
         {"discover": "discover", "evaluate": "evaluate"},
     )
-    graph.add_edge("score", "decide")
+    graph.add_edge("score", "contrarian")
+    graph.add_edge("contrarian", "decide")
     graph.add_edge("decide", "report")
     graph.add_edge("report", END)
 

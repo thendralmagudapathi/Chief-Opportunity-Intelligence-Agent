@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.agents.schemas import ObjectiveUnderstanding
 from app.core.errors import ValidationError
 from app.models.agent_run import AgentRun
 from app.models.application import Application
@@ -254,11 +255,21 @@ class SearchUserProfileTool(BaseTool):
     async def run(self, args: BaseModel, ctx: ToolContext) -> dict[str, Any]:
         payload = SearchUserProfileArgs.model_validate(args)
         retrieval = build_retrieval_service(ctx.session, ctx.settings)
+        understanding = (
+            ObjectiveUnderstanding(
+                intent="profile_search",
+                keywords=payload.expansion_terms,
+                success_criteria="relevant passages",
+            )
+            if payload.expansion_terms
+            else None
+        )
         result = await retrieval.search_profile(
             user_id=ctx.user_id,
             query=payload.query,
             top_k=payload.top_k,
             rerank=True,
+            understanding=understanding,
         )
         return {
             "query": result.query,
@@ -272,6 +283,7 @@ class SearchUserProfileTool(BaseTool):
                 for passage in result.passages
             ],
             "degraded": result.degraded,
+            "expanded": bool(payload.expansion_terms),
         }
 
 
@@ -291,7 +303,9 @@ class SearchUserDocumentsTool(BaseTool):
             top_k=payload.top_k,
             rerank=True,
         )
-        document_passages = [passage for passage in result.passages if passage.document_id is not None]
+        document_passages = [
+            passage for passage in result.passages if passage.document_id is not None
+        ]
         return {
             "query": result.query,
             "passages": [

@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.routes import agent_runs, auth, documents, goals, health, opportunities, profile
+from app.api.v1.routes import (
+    agent_runs,
+    agents,
+    auth,
+    documents,
+    feedback,
+    goals,
+    health,
+    opportunities,
+    outcomes,
+    profile,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -14,3 +25,6 @@ api_router.include_router(documents.router)
 api_router.include_router(goals.router)
 api_router.include_router(opportunities.router)
 api_router.include_router(agent_runs.router)
+api_router.include_router(agents.router)
+api_router.include_router(feedback.router)
+api_router.include_router(outcomes.router)

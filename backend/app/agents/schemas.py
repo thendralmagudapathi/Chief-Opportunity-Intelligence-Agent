@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import Recommendation
+from app.models.enums import ClaimType, Recommendation
 
 
 class ObjectiveUnderstanding(BaseModel):
@@ -76,6 +76,31 @@ class CandidateEvaluation(BaseModel):
     risk: RiskAssessment
 
 
+class VerifiedClaim(BaseModel):
+    claim: str
+    claim_type: ClaimType
+    confidence: float = Field(ge=0.0, le=1.0)
+    supporting_sources: list[str] = Field(default_factory=list)
+    contradicting_sources: list[str] = Field(default_factory=list)
+    unresolved: bool = False
+
+
+class VerificationResult(BaseModel):
+    opportunity_id: uuid.UUID
+    claims: list[VerifiedClaim] = Field(default_factory=list)
+    unresolved_high_impact_count: int = Field(default=0, ge=0)
+    overall_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class ContrarianAnalysis(BaseModel):
+    opportunity_id: uuid.UUID
+    contradicting_evidence: list[str] = Field(default_factory=list)
+    weak_assumptions: list[str] = Field(default_factory=list)
+    failure_modes: list[str] = Field(default_factory=list)
+    opportunity_cost: str = ""
+    verdict_pressure: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class AgentDecision(BaseModel):
     opportunity_id: uuid.UUID
     recommendation: Recommendation
@@ -93,6 +118,7 @@ class FinalOpportunityReport(BaseModel):
     degraded: bool = False
     iterations: int = 0
     recommendations: list[AgentDecision] = Field(default_factory=list)
+    counterpoints: list[ContrarianAnalysis] = Field(default_factory=list)
     partial_results: bool = False
     detail: str | None = None
 

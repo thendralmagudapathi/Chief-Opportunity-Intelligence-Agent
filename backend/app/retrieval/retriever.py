@@ -91,3 +91,50 @@ class ProfileRetriever:
             degraded=degraded,
             detail="dense retrieval unavailable; lexical and profile only" if degraded else None,
         )
+
+    async def search_multi(
+        self,
+        *,
+        user_id: uuid.UUID,
+        queries: list[str],
+        profile: UserProfile | None = None,
+        rerank: bool | None = None,
+    ) -> RetrievalResult:
+        """Run hybrid retrieval for multiple query variants and fuse the results."""
+        cleaned = [query.strip() for query in queries if query.strip()]
+        if not cleaned:
+            return RetrievalResult(query="", passages=[])
+
+        ranked_lists: list[list[ScoredPassage]] = []
+        degraded = False
+        detail: str | None = None
+        for query in cleaned:
+            result = await self.search(
+                user_id=user_id,
+                query=query,
+                profile=profile,
+                rerank=False,
+            )
+            ranked_lists.append(result.passages)
+            degraded = degraded or result.degraded
+            if result.detail and detail is None:
+                detail = result.detail
+
+        fused = (
+            reciprocal_rank_fusion(*ranked_lists, limit=self._retrieval_top_k)
+            if ranked_lists
+            else []
+        )
+        use_rerank = rerank if rerank is not None else self._reranker is not None
+        primary_query = cleaned[0]
+        if use_rerank and self._reranker is not None and fused:
+            passages = await self._reranker.rerank(primary_query, fused, top_n=self._rerank_top_n)
+        else:
+            passages = fused[: self._rerank_top_n]
+
+        return RetrievalResult(
+            query=primary_query,
+            passages=passages,
+            degraded=degraded,
+            detail=detail,
+        )

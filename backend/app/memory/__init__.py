@@ -11,3 +11,7 @@ Writes are append-only with provenance: a contradicted record is closed with
 ``valid_to`` and linked through ``superseded_by_id``. Memory must never mutate
 an existing fact in place.
 """
+
+from app.memory.service import MemoryService
+
+__all__ = ["MemoryService"]
