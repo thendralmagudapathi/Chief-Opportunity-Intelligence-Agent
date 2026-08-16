@@ -1,8 +1,4 @@
-"""Opportunity read and refresh endpoints.
-
-Search and investigate land in Phase 4. They are absent rather than stubbed, so
-the OpenAPI schema never advertises a capability the system does not have.
-"""
+"""Opportunity read, investigation, and refresh endpoints."""
 
 from __future__ import annotations
 
@@ -11,9 +7,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, Query, status
 
-from app.api.deps import CurrentUser, IngestionServiceDep, OpportunityServiceDep
+from app.agents.schemas import InvestigationRequest, InvestigationStartResponse
+from app.api.deps import (
+    CurrentUser,
+    IngestionServiceDep,
+    InvestigationServiceDep,
+    OpportunityServiceDep,
+    SettingsDep,
+)
 from app.models.enums import OpportunityCategory, OpportunityStatus, RemoteStatus
 from app.models.opportunity import Opportunity, OpportunityScore
 from app.schemas.common import Page
@@ -28,6 +31,7 @@ from app.schemas.opportunity import (
     ScoreDimensions,
     ScoreRead,
 )
+from app.services.investigation_service import run_investigation_background
 
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
@@ -64,6 +68,28 @@ def _to_list_item(opportunity: Opportunity, score: OpportunityScore | None) -> O
         item.overall_score = score.overall_score
         item.recommendation = score.recommendation
     return item
+
+
+@router.post(
+    "/investigate",
+    response_model=InvestigationStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Run a full objective-driven investigation",
+)
+async def investigate_opportunities(
+    payload: InvestigationRequest,
+    user: CurrentUser,
+    investigation: InvestigationServiceDep,
+    settings: SettingsDep,
+    background: BackgroundTasks,
+) -> InvestigationStartResponse:
+    run_id, trace_id = await investigation.start_and_commit(user.id, payload)
+    background.add_task(run_investigation_background, run_id, user.id)
+    return InvestigationStartResponse(
+        run_id=run_id,
+        trace_id=trace_id,
+        stream_url=f"{settings.api_v1_prefix}/agent-runs/{run_id}/stream",
+    )
 
 
 @router.get("", response_model=Page[OpportunityListItem], summary="List ranked opportunities")

@@ -17,9 +17,7 @@ def phrase_recall_at_k(relevant_phrases: set[str], retrieved: list[str], k: int)
     if not relevant_phrases:
         return 0.0
     hits = sum(
-        1
-        for phrase in relevant_phrases
-        if any(phrase in passage for passage in retrieved[:k])
+        1 for phrase in relevant_phrases if any(phrase in passage for passage in retrieved[:k])
     )
     return hits / len(relevant_phrases)
 

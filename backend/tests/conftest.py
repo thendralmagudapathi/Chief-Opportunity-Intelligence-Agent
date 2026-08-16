@@ -33,6 +33,7 @@ os.environ.update(
         "REDIS__ENABLED": "false",
         "RAG__EMBEDDING_PROVIDER": "fake",
         "RAG__RERANK_ENABLED": "true",
+        "MODELS__PROVIDER": "fake",
         "OBSERVABILITY__LOG_LEVEL": "WARNING",
     }
 )
