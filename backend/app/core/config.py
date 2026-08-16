@@ -95,6 +95,12 @@ class RedisSettings(BaseModel):
     cache_ttl_s: int = Field(default=3600, ge=1)
 
 
+class StorageSettings(BaseModel):
+    """Object storage for uploaded profile documents."""
+
+    local_path: str = "./data/uploads"
+
+
 class RagSettings(BaseModel):
     """Retrieval configuration.
 
@@ -182,6 +188,7 @@ class Settings(BaseSettings):
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     cors: CorsSettings = Field(default_factory=CorsSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
     rag: RagSettings = Field(default_factory=RagSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
     agents: AgentSettings = Field(default_factory=AgentSettings)

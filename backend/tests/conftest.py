@@ -31,6 +31,8 @@ os.environ.update(
         "SECURITY__AUTH_RATE_LIMIT_REQUESTS": "500",
         "SECURITY__RATE_LIMIT_REQUESTS": "5000",
         "REDIS__ENABLED": "false",
+        "RAG__EMBEDDING_PROVIDER": "fake",
+        "RAG__RERANK_ENABLED": "true",
         "OBSERVABILITY__LOG_LEVEL": "WARNING",
     }
 )

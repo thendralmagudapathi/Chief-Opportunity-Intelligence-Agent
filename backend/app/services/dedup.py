@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import OpportunityStatus
 from app.models.opportunity import Opportunity
+from app.retrieval.vector_store import cosine_similarity
 from app.services.normalization import normalize_text
 
 #: Jaccard similarity over character trigrams above which two titles from the
@@ -57,6 +58,9 @@ _SENIORITY = frozenset(
 #: open postings than this is a job board, and the URL and hash probes are the
 #: ones that matter there.
 CANDIDATE_LIMIT = 200
+
+#: Cosine similarity above which two postings are treated as embedding duplicates.
+EMBEDDING_SIMILARITY_THRESHOLD = 0.92
 
 
 class MatchMethod(StrEnum):
@@ -137,13 +141,10 @@ class DeduplicationService:
     async def find_duplicate(
         self, candidate: Candidate, *, exclude_id: uuid.UUID | None = None
     ) -> DuplicateMatch | None:
-        for probe in (self._by_url, self._by_hash, self._by_title):
+        for probe in (self._by_url, self._by_hash, self._by_title, self._by_embedding):
             match = await probe(candidate, exclude_id)
             if match is not None:
                 return match
-        # Embedding proximity is the fourth probe. It stays a no-op until Phase 3
-        # populates the vectors; wiring it in early would mean comparing against
-        # nulls and calling the result a decision.
         return None
 
     async def _by_url(
@@ -206,6 +207,33 @@ class DeduplicationService:
             ratio = similarity(candidate.title, title)
             if ratio >= TITLE_SIMILARITY_THRESHOLD and (best is None or ratio > best.similarity):
                 best = DuplicateMatch(row_id, MatchMethod.TITLE_SIMILARITY, round(ratio, 4))
+        return best
+
+    async def _by_embedding(
+        self, candidate: Candidate, exclude_id: uuid.UUID | None
+    ) -> DuplicateMatch | None:
+        if not candidate.embedding:
+            return None
+
+        stmt = (
+            select(Opportunity.id, Opportunity.embedding)
+            .where(Opportunity.embedding.is_not(None))
+            .where(Opportunity.status != OpportunityStatus.DUPLICATE)
+            .limit(CANDIDATE_LIMIT)
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(Opportunity.id != exclude_id)
+
+        rows = (await self.session.execute(stmt)).all()
+        best: DuplicateMatch | None = None
+        for row_id, embedding in rows:
+            if embedding is None:
+                continue
+            ratio = cosine_similarity(candidate.embedding, embedding)
+            if ratio >= EMBEDDING_SIMILARITY_THRESHOLD and (
+                best is None or ratio > best.similarity
+            ):
+                best = DuplicateMatch(row_id, MatchMethod.EMBEDDING, round(ratio, 4))
         return best
 
     async def _first(self, stmt, exclude_id: uuid.UUID | None) -> uuid.UUID | None:  # type: ignore[no-untyped-def]

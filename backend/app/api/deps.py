@@ -14,9 +14,11 @@ from app.core.errors import AuthenticationError, PermissionDeniedError
 from app.core.security import TokenError, decode_token
 from app.db.session import get_db_session
 from app.models.user import User
+from app.services.document_service import DocumentService
 from app.services.goal_service import GoalService
 from app.services.ingestion import IngestionService
 from app.services.opportunity_service import OpportunityService
+from app.services.retrieval_service import RetrievalService, build_retrieval_service
 from app.services.scoring_service import ScoringService
 from app.services.user_service import UserService
 
@@ -48,11 +50,24 @@ def get_scoring_service(session: SessionDep) -> ScoringService:
     return ScoringService(session)
 
 
+def get_document_service(session: SessionDep, settings: SettingsDep) -> DocumentService:
+    from app.retrieval.factory import build_retrieval_stack
+
+    stack = build_retrieval_stack(session, settings)
+    return DocumentService(session, stack, settings)
+
+
+def get_retrieval_service(session: SessionDep, settings: SettingsDep) -> RetrievalService:
+    return build_retrieval_service(session, settings)
+
+
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 GoalServiceDep = Annotated[GoalService, Depends(get_goal_service)]
 OpportunityServiceDep = Annotated[OpportunityService, Depends(get_opportunity_service)]
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 ScoringServiceDep = Annotated[ScoringService, Depends(get_scoring_service)]
+DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
+RetrievalServiceDep = Annotated[RetrievalService, Depends(get_retrieval_service)]
 
 
 async def get_current_user(
