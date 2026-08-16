@@ -11,6 +11,7 @@ from app.api.v1.routes import (
     documents,
     evaluations,
     feedback,
+    finetuning,
     goals,
     health,
     opportunities,
@@ -30,3 +31,4 @@ api_router.include_router(agents.router)
 api_router.include_router(feedback.router)
 api_router.include_router(outcomes.router)
 api_router.include_router(evaluations.router)
+api_router.include_router(finetuning.router)

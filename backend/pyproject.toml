@@ -50,6 +50,7 @@ observability = [
     "langfuse>=2.53",
 ]
 evaluation = ["ragas>=0.2", "mlflow>=2.18", "scikit-learn>=1.5"]
+finetuning = ["peft>=0.13", "transformers>=4.46", "datasets>=3.1", "accelerate>=1.1"]
 workers = ["celery[redis]>=5.4"]
 dev = [
     "pytest>=8.3",
@@ -116,7 +117,7 @@ disallow_untyped_decorators = false        # FastAPI/SQLAlchemy decorators
 exclude = ["app/db/migrations/versions/"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "argon2.*", "pypdf.*", "docx.*", "sentence_transformers.*", "langgraph.*", "langchain_core.*", "mcp.*", "mcp_types.*", "opentelemetry.*", "mlflow.*", "langfuse.*", "ragas.*"]
+module = ["pgvector.*", "argon2.*", "pypdf.*", "docx.*", "sentence_transformers.*", "langgraph.*", "langchain_core.*", "mcp.*", "mcp_types.*", "opentelemetry.*", "mlflow.*", "langfuse.*", "ragas.*", "peft.*", "transformers.*", "datasets.*", "accelerate.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

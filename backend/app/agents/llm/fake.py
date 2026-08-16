@@ -120,5 +120,64 @@ def _response_for_prompt(prompt: str, *, task_class: TaskClass) -> dict[str, Any
             "overall_confidence": 0.72,
         }
     if task_class == "extract":
-        return {"title": "Extracted title", "organization_name": "Example GmbH"}
+        if "few-shot examples" in lowered:
+            return _parse_posting_extraction(prompt)
+        fields = _parse_posting_fields(prompt)
+        return {
+            "title": fields.get("title") or "Extracted title",
+            "organization_name": fields.get("organization"),
+            "category": fields.get("category") or "other",
+        }
     return {"message": "acknowledged"}
+
+
+def _parse_posting_fields(prompt: str) -> dict[str, str]:
+    section = prompt
+    if "Few-shot examples" in section:
+        section = section.split("Few-shot examples", 1)[0]
+    if "Posting:" in section:
+        section = section.split("Posting:", 1)[1]
+    fields: dict[str, str] = {}
+    for line in section.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        fields[key.strip().casefold()] = value.strip()
+    return fields
+
+
+def _parse_posting_extraction(prompt: str) -> dict[str, Any]:
+    fields = _parse_posting_fields(prompt)
+    required = [
+        part.strip() for part in (fields.get("required skills") or "").split(",") if part.strip()
+    ]
+    preferred = [
+        part.strip() for part in (fields.get("preferred skills") or "").split(",") if part.strip()
+    ]
+    compensation = fields.get("compensation") or ""
+    comp_min = comp_max = comp_currency = comp_period = None
+    match = re.search(
+        r"(?P<min>\d+)\-(?P<max>\d+)\s+(?P<currency>[A-Z]{3})\s+per\s+(?P<period>\w+)",
+        compensation,
+        re.IGNORECASE,
+    )
+    if match:
+        comp_min = int(match.group("min"))
+        comp_max = int(match.group("max"))
+        comp_currency = match.group("currency").upper()
+        comp_period = match.group("period").casefold()
+    return {
+        "title": fields.get("title") or "Extracted title",
+        "organization_name": fields.get("organization"),
+        "category": fields.get("category") or "other",
+        "summary": fields.get("summary"),
+        "location_country": fields.get("country"),
+        "remote_status": fields.get("remote") or "unknown",
+        "deadline": fields.get("deadline"),
+        "required_skills": required,
+        "preferred_skills": preferred,
+        "compensation_min": comp_min,
+        "compensation_max": comp_max,
+        "compensation_currency": comp_currency,
+        "compensation_period": comp_period,
+    }

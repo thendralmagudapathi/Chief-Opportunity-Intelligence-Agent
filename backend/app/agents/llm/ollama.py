@@ -14,9 +14,15 @@ logger = get_logger(__name__)
 
 
 class OllamaLLMProvider:
-    def __init__(self, settings: ModelSettings) -> None:
+    def __init__(
+        self,
+        settings: ModelSettings,
+        *,
+        extraction_model: str | None = None,
+    ) -> None:
         self._settings = settings
         self._base_url = settings.base_url.rstrip("/")
+        self._extraction_model = extraction_model
 
     async def complete(
         self,
@@ -25,7 +31,10 @@ class OllamaLLMProvider:
         task_class: TaskClass = "standard",
         system: str | None = None,
     ) -> LLMResponse:
-        model = self._settings.for_task(task_class)
+        if task_class == "extract" and self._extraction_model:
+            model = self._extraction_model
+        else:
+            model = self._settings.for_task(task_class)
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})

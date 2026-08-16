@@ -23,9 +23,7 @@ async def test_ci_subset_has_fifty_cases() -> None:
     assert total_case_count() == 50
 
 
-async def test_ci_harness_passes_gate(
-    settings, session, registered_user, monkeypatch
-) -> None:  # type: ignore[no-untyped-def]
+async def test_ci_harness_passes_gate(settings, session, registered_user, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("RAG__CHUNK_SIZE_TOKENS", "80")
     monkeypatch.setenv("RAG__CHUNK_OVERLAP_TOKENS", "16")
     from app.core.config import get_settings

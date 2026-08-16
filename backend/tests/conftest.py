@@ -123,6 +123,23 @@ async def registered_user(client):  # type: ignore[no-untyped-def]
 
 
 @pytest.fixture
+async def admin_user(client, registered_user):  # type: ignore[no-untyped-def]
+    """Registered user promoted to superuser for admin-only routes."""
+    import uuid
+
+    from app.db.session import get_session_factory
+    from app.models.user import User
+
+    factory = get_session_factory()
+    async with factory() as session:
+        user = await session.get(User, uuid.UUID(registered_user["id"]))
+        assert user is not None
+        user.is_superuser = True
+        await session.commit()
+    return registered_user
+
+
+@pytest.fixture
 async def cleanup_opportunities():  # type: ignore[no-untyped-def]
     """Delete opportunity rows tests commit into the session-scoped database."""
     import uuid

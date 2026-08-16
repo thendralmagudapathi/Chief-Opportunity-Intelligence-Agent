@@ -177,6 +177,16 @@ class ObservabilitySettings(BaseModel):
     mlflow_tracking_uri: str | None = None
 
 
+class FineTuningSettings(BaseModel):
+    """Active fine-tuned model selection and rollback (Phase 8)."""
+
+    enabled: bool = False
+    active_extraction_model: str | None = None
+    rollback_extraction_model: str | None = None
+    registry_name: str = "oia-extraction"
+    noise_band: float = Field(default=0.02, ge=0.0, le=0.25)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
@@ -203,6 +213,7 @@ class Settings(BaseSettings):
     agents: AgentSettings = Field(default_factory=AgentSettings)
     egress: EgressSettings = Field(default_factory=EgressSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    finetuning: FineTuningSettings = Field(default_factory=FineTuningSettings)
 
     @property
     def docs_url(self) -> str | None:
