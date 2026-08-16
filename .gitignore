@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local data
+*.db
+*.sqlite3
+storage/
+mlruns/
+ml/models/*
+!ml/models/.gitkeep
+
+# Local build brief (kept out of the repository)
+Project_Build.md
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

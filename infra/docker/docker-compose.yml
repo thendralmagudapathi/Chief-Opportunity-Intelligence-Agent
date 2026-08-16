@@ -1,0 +1,97 @@
+name: oia
+
+x-logging: &default-logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-oia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oia}
+      POSTGRES_DB: ${POSTGRES_DB:-oia}
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-oia} -d ${POSTGRES_DB:-oia}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+      target: development
+    env_file: [../../.env]
+    environment:
+      # Service names replace localhost inside the compose network.
+      DATABASE__URL: postgresql+asyncpg://${POSTGRES_USER:-oia}:${POSTGRES_PASSWORD:-oia}@postgres:5432/${POSTGRES_DB:-oia}
+      REDIS__ENABLED: "true"
+      REDIS__URL: redis://redis:6379/0
+      MODELS__BASE_URL: http://ollama:11434
+    ports: ["8000:8000"]
+    volumes:
+      - ../../backend:/app:cached
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Migrations run on start in development only; production runs them as a
+    # separate job so two replicas cannot race each other.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/frontend.Dockerfile
+      target: development
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    volumes:
+      - ../../frontend:/app:cached
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      api: { condition: service_started }
+    logging: *default-logging
+
+  # Optional local inference. Start with:  docker compose --profile llm up
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    ports: ["11434:11434"]
+    volumes:
+      - ollama_data:/root/.ollama
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:

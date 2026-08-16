@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #0b0f17;
+  --color-panel: #121826;
+  --color-panel-raised: #182033;
+  --color-edge: #223049;
+  --color-ink: #e8edf7;
+  --color-ink-muted: #93a1bd;
+  --color-accent: #5b8cff;
+  --color-positive: #3ecf8e;
+  --color-caution: #f4b740;
+  --color-negative: #f8697a;
+}
+
+html,
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
