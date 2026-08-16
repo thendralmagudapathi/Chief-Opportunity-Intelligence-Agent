@@ -57,3 +57,11 @@ class GoalRead(ORMModel):
     weights_override: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+
+
+class ScoreRunRead(BaseModel):
+    """Summary of a scoring pass against one goal."""
+
+    goal_id: uuid.UUID
+    scored: int
+    recommended: int

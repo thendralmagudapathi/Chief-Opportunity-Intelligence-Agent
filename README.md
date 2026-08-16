@@ -10,10 +10,10 @@ a stored piece of evidence, and every piece of evidence carries a URL, a
 retrieval timestamp, and a claim type. The system says "I don't know" instead of
 guessing.
 
-> **Status: Phase 1 (Foundation) complete.** The data model, API surface, auth,
-> security primitives, migration, container stack, and frontend shell are built
-> and tested. The agent graph, retrieval stack, and tool layer are specified in
-> `/docs` and land in Phases 2–6.
+> **Status: Phase 2 (Opportunity Engine) complete.** The data model, API, auth,
+> and a deterministic scoring/ingestion pipeline are built and tested. The
+> agent graph, retrieval stack, and tool layer are specified in `/docs` and
+> land in Phases 3–6.
 
 ## Documentation
 
@@ -77,6 +77,7 @@ service if you prefer to run the application processes on the host.
 make check      # ruff + mypy + pytest, the same gate CI runs
 make test       # pytest
 make smoke      # end-to-end smoke test only
+make seed       # load the 50-item fixture corpus
 make fmt        # ruff check --fix, then ruff format
 make web-build  # production frontend build
 ```
@@ -99,8 +100,14 @@ and evaluation runs. Embedding columns are `vector(768)` on PostgreSQL with
 HNSW indexes and degrade to JSON on SQLite so the schema stays testable.
 
 **API** — health (live/ready/info), auth (register/login/refresh/me), profile
-(get/put/patch), goals (CRUD), and opportunities (list with filtering, sorting,
-and keyset pagination; detail with scores and evidence).
+(get/put/patch), goals (CRUD plus score), and opportunities (list with
+filtering, sorting, and keyset pagination; detail with scores, recommendation
+and explanation; refresh).
+
+**Opportunity engine** — normalisation, deduplication, freshness/expiry, a
+status state machine, and a pure scoring function. Unknown dimensions are
+excluded rather than zeroed. A 50-item public-programme corpus seeds the
+database via `python -m app.seed`.
 
 **Security** — the trust hierarchy from `docs/SECURITY_MODEL.md` is enforced in
 code: external content is sanitized, scanned for injection patterns, and
@@ -121,4 +128,4 @@ infra/      Docker Compose stack and service images
 
 ## License
 
-Not yet licensed. All rights reserved.
+MIT — see [`LICENSE`](LICENSE).

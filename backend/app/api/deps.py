@@ -15,7 +15,9 @@ from app.core.security import TokenError, decode_token
 from app.db.session import get_db_session
 from app.models.user import User
 from app.services.goal_service import GoalService
+from app.services.ingestion import IngestionService
 from app.services.opportunity_service import OpportunityService
+from app.services.scoring_service import ScoringService
 from app.services.user_service import UserService
 
 # auto_error=False so a missing header raises our own error contract rather
@@ -38,9 +40,19 @@ def get_opportunity_service(session: SessionDep) -> OpportunityService:
     return OpportunityService(session)
 
 
+def get_ingestion_service(session: SessionDep) -> IngestionService:
+    return IngestionService(session)
+
+
+def get_scoring_service(session: SessionDep) -> ScoringService:
+    return ScoringService(session)
+
+
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 GoalServiceDep = Annotated[GoalService, Depends(get_goal_service)]
 OpportunityServiceDep = Annotated[OpportunityService, Depends(get_opportunity_service)]
+IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
+ScoringServiceDep = Annotated[ScoringService, Depends(get_scoring_service)]
 
 
 async def get_current_user(

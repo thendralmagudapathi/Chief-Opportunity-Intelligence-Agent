@@ -28,7 +28,7 @@ reset: ## Destroy volumes and start clean (deletes all local data)
 	$(COMPOSE) down -v && $(COMPOSE) up -d --build
 
 # ------------------------------------------------------------------- backend
-.PHONY: install migrate revision test smoke lint fmt types check
+.PHONY: install migrate revision test smoke lint fmt types check seed
 install: ## Install backend dependencies
 	$(PY) pip install -e ".[dev]"
 
@@ -54,6 +54,9 @@ types: ## Type check
 	$(PY) mypy app
 
 check: lint types test ## Everything CI runs
+
+seed: ## Load the fixture corpus (requires a migrated database)
+	$(PY) python -m app.seed
 
 # ------------------------------------------------------------------ frontend
 .PHONY: web web-build web-types

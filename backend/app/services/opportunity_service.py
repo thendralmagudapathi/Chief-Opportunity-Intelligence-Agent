@@ -1,8 +1,7 @@
 """Opportunity read access.
 
-Phase 1 implements the read path only: filtering, keyset pagination and the
-detail projection. Discovery, deduplication, freshness and scoring land in
-Phase 2 (docs/IMPLEMENTATION_PLAN.md).
+Filtering, keyset pagination and the detail projection. Discovery, scoring and
+freshness live in sibling services; this module only reads what they wrote.
 """
 
 from __future__ import annotations
@@ -20,9 +19,9 @@ from sqlalchemy import ColumnElement, Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
-from app.models.enums import OpportunityStatus
 from app.models.opportunity import Opportunity, OpportunityEvidence, OpportunityScore
 from app.schemas.opportunity import OpportunityFilters
+from app.services.lifecycle import INACTIVE
 
 SortKey = Literal["score", "deadline", "recent"]
 
@@ -30,8 +29,6 @@ SortKey = Literal["score", "deadline", "recent"]
 #: keeping the sort expression non-null, which keeps keyset paging simple.
 FAR_FUTURE = datetime(9999, 12, 31, tzinfo=UTC)
 NO_SCORE = Decimal("-1")
-
-_STALE_STATUSES = (OpportunityStatus.EXPIRED, OpportunityStatus.DUPLICATE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +105,7 @@ class OpportunityService:
             stmt = stmt.where(Opportunity.status == filters.status)
         elif not filters.include_expired:
             # Stale and duplicate rows are never recommended (brief §25).
-            stmt = stmt.where(Opportunity.status.not_in(_STALE_STATUSES))
+            stmt = stmt.where(Opportunity.status.not_in(INACTIVE))
         if filters.country is not None:
             stmt = stmt.where(Opportunity.location_country == filters.country.upper())
         if filters.remote_status is not None:
