@@ -1,4 +1,6 @@
-COMPOSE := docker compose -f infra/docker/docker-compose.yml
+# --env-file makes the root .env the single source of substitution values;
+# without it Compose would only look for one next to the compose file.
+COMPOSE := docker compose --env-file .env -f infra/docker/docker-compose.yml
 PY      := cd backend &&
 
 .DEFAULT_GOAL := help
