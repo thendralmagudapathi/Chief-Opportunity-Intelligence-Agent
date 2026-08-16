@@ -117,3 +117,21 @@ async def registered_user(client):  # type: ignore[no-untyped-def]
         "refresh_token": tokens["refresh_token"],
         "headers": {"Authorization": f"Bearer {tokens['access_token']}"},
     }
+
+
+@pytest.fixture
+async def cleanup_opportunities():  # type: ignore[no-untyped-def]
+    """Delete opportunity rows tests commit into the session-scoped database."""
+    import uuid
+
+    from app.db.session import get_session_factory
+    from app.models.opportunity import Opportunity
+    from sqlalchemy import delete
+
+    created: list[uuid.UUID] = []
+    yield created
+
+    factory = get_session_factory()
+    async with factory() as session:
+        await session.execute(delete(Opportunity).where(Opportunity.id.in_(created)))
+        await session.commit()

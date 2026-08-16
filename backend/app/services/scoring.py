@@ -146,7 +146,7 @@ class Weights:
     def build(
         cls,
         version: str,
-        benefit: Mapping[Dimension | str, object],
+        benefit: Mapping[Dimension, object] | Mapping[str, object],
         *,
         effort: object = Decimal("0.5"),
         risk: object = Decimal("0.5"),
@@ -200,7 +200,7 @@ class Weights:
         """
         if not override:
             return self
-        merged: dict[Dimension | str, object] = {d: w for d, w in self.benefit.items()}
+        merged: dict[str, object] = {d.value: w for d, w in self.benefit.items()}
         effort: object = self.effort
         risk: object = self.risk
         for key, value in override.items():

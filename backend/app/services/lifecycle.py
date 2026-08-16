@@ -30,9 +30,11 @@ _EXITS: frozenset[OpportunityStatus] = frozenset({S.ARCHIVED, S.EXPIRED, S.REJEC
 #: one depends on.
 _PIPELINE: Mapping[OpportunityStatus, frozenset[OpportunityStatus]] = MappingProxyType(
     {
-        S.DISCOVERED: frozenset({S.ENRICHED, S.QUALIFIED}),
-        S.ENRICHED: frozenset({S.QUALIFIED, S.SCORED}),
-        S.QUALIFIED: frozenset({S.SCORED}),
+        # Stages may be skipped: Phase 2 scores a freshly ingested row without
+        # an enrichment pass, and a later agent may still walk the long way.
+        S.DISCOVERED: frozenset({S.ENRICHED, S.QUALIFIED, S.SCORED, S.RECOMMENDED}),
+        S.ENRICHED: frozenset({S.QUALIFIED, S.SCORED, S.RECOMMENDED}),
+        S.QUALIFIED: frozenset({S.SCORED, S.RECOMMENDED}),
         S.SCORED: frozenset({S.RECOMMENDED, S.QUALIFIED}),
         # A recommendation can be recomputed, which lands back on SCORED.
         S.RECOMMENDED: frozenset({S.SCORED}),

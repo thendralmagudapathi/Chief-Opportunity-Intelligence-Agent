@@ -1,8 +1,7 @@
-"""Opportunity read endpoints.
+"""Opportunity read and refresh endpoints.
 
-Write, search and investigate endpoints are contracted in docs/API_CONTRACTS.md
-and land in Phases 2 and 4. They are absent rather than stubbed, so the OpenAPI
-schema never advertises a capability the system does not have.
+Search and investigate land in Phase 4. They are absent rather than stubbed, so
+the OpenAPI schema never advertises a capability the system does not have.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CurrentUser, OpportunityServiceDep
+from app.api.deps import CurrentUser, IngestionServiceDep, OpportunityServiceDep
 from app.models.enums import OpportunityCategory, OpportunityStatus, RemoteStatus
 from app.models.opportunity import Opportunity, OpportunityScore
 from app.schemas.common import Page
@@ -132,5 +131,30 @@ async def read_opportunity(
             score=opportunity.freshness_score,
         ),
         score=_to_score(row.score),
+        recommendation=row.score.recommendation if row.score else None,
+        explanation=dict(row.score.explanation) if row.score else {},
         evidence=[EvidenceRead.model_validate(e) for e in evidence],
     )
+
+
+@router.post(
+    "/{opportunity_id}/refresh",
+    response_model=OpportunityRead,
+    summary="Recompute freshness and apply any due expiry",
+)
+async def refresh_opportunity(
+    opportunity_id: uuid.UUID,
+    _user: CurrentUser,
+    service: OpportunityServiceDep,
+    ingestion: IngestionServiceDep,
+    goal_id: uuid.UUID | None = None,
+) -> OpportunityRead:
+    """Re-date an opportunity from what is already stored.
+
+    Re-fetching the source belongs to the discovery pipeline; this recomputes the
+    freshness score and expires the row if its deadline has passed, which is what
+    keeps closed opportunities out of recommendations between crawls.
+    """
+    row = await service.get_opportunity(opportunity_id, goal_id)
+    await ingestion.refresh(row.opportunity)
+    return await read_opportunity(opportunity_id, _user, service, goal_id)

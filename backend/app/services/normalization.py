@@ -184,6 +184,9 @@ def canonicalize_url(url: str | None) -> str | None:
     if not url or not url.strip():
         return None
     raw = url.strip()
+    scheme_hint = raw.split(":", 1)[0].lower()
+    if scheme_hint in {"mailto", "ftp", "file", "javascript", "data", "tel"}:
+        return None
     if "://" not in raw:
         raw = f"https://{raw}"
 
@@ -332,6 +335,14 @@ def parse_deadline(value: str | datetime | None, *, day_first: bool | None = Non
     else:
         if moment.tzinfo is None:
             moment = moment.replace(tzinfo=UTC)
+        # fromisoformat treats a date-only string as midnight. A deadline of
+        # "2026-09-30" has not passed at 09:00 that day.
+        if (
+            "T" not in text.upper()
+            and " " not in text
+            and (parsed := _end_of_day(moment.year, moment.month, moment.day))
+        ):
+            return ParsedDate(parsed, DateOutcome.PARSED)
         return ParsedDate(moment.astimezone(UTC), DateOutcome.PARSED)
 
     if match := _ISO_DATE.search(text):

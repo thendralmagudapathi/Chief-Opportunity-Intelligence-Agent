@@ -133,6 +133,10 @@ class OpportunityRead(OpportunityColumns):
     compensation: Compensation = Field(default_factory=Compensation)
     freshness: Freshness = Field(default_factory=Freshness)
     score: ScoreRead | None = None
+    recommendation: Recommendation | None = None
+    #: WHY THIS / WHY NOW / WHY ME / WHAT COULD GO WRONG, as produced by the
+    #: scoring engine. Empty until the opportunity has been scored.
+    explanation: dict[str, Any] = Field(default_factory=dict)
     evidence: list[EvidenceRead] = Field(default_factory=list)
 
 

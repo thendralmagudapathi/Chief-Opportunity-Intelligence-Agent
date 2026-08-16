@@ -83,10 +83,12 @@ class ScoringService:
         stmt = stmt.order_by(Opportunity.created_at).limit(limit)
 
         opportunities = (await self.session.execute(stmt)).scalars().all()
-        return [
+        rows = [
             await self.score_opportunity(opportunity, goal, profile=profile, now=now)
             for opportunity in opportunities
         ]
+        logger.info("goal_scored", goal_id=str(goal.id), scored=len(rows))
+        return rows
 
     async def score_goal_by_id(
         self, goal_id: uuid.UUID, user_id: uuid.UUID, *, now: datetime | None = None

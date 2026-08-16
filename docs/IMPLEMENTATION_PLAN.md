@@ -40,7 +40,7 @@ Rule: a phase is done when its exit criteria pass, not when its code exists.
 
 ---
 
-## Phase 2 — Opportunity Engine
+## Phase 2 — Opportunity Engine ✅
 
 Deterministic core, no LLM required.
 

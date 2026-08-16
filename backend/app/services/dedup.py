@@ -33,9 +33,25 @@ from app.services.normalization import normalize_text
 
 #: Jaccard similarity over character trigrams above which two titles from the
 #: same organisation are considered the same posting. Set from the labelled
-#: duplicate set in ``tests/test_dedup.py``: high enough that "Senior Engineer"
-#: and "Junior Engineer" stay distinct, low enough to absorb re-wording.
+#: duplicate set in ``tests/test_dedup.py``: high enough to absorb re-wording,
+#: combined with a seniority veto so "Senior Engineer" and "Junior Engineer"
+#: stay distinct.
 TITLE_SIMILARITY_THRESHOLD = 0.62
+
+_SENIORITY = frozenset(
+    {
+        "junior",
+        "senior",
+        "staff",
+        "principal",
+        "lead",
+        "intern",
+        "graduate",
+        "associate",
+        "fellow",
+        "director",
+    }
+)
 
 #: How many same-organisation rows to compare against. An organisation with more
 #: open postings than this is a job board, and the URL and hash probes are the
@@ -93,6 +109,23 @@ def similarity(left: str, right: str) -> float:
     if intersection == 0:
         return 0.0
     return intersection / len(a | b)
+
+
+def seniority_tokens(title: str) -> frozenset[str]:
+    """The seniority markers present in a title, if any."""
+    text = (normalize_text(title) or "").casefold()
+    for ch in "()[],/-" + "\u2013\u2014":
+        text = text.replace(ch, " ")
+    return frozenset(text.split()) & _SENIORITY
+
+
+def titles_compatible(left: str, right: str) -> bool:
+    """False when two titles name different rungs of the same ladder.
+
+    Trigram similarity cannot tell "Senior Engineer" from "Junior Engineer"
+    because they share most of their characters. The seniority markers can.
+    """
+    return seniority_tokens(left) == seniority_tokens(right)
 
 
 class DeduplicationService:
@@ -168,6 +201,8 @@ class DeduplicationService:
         rows = (await self.session.execute(stmt)).all()
         best: DuplicateMatch | None = None
         for row_id, title in rows:
+            if not titles_compatible(candidate.title, title):
+                continue
             ratio = similarity(candidate.title, title)
             if ratio >= TITLE_SIMILARITY_THRESHOLD and (best is None or ratio > best.similarity):
                 best = DuplicateMatch(row_id, MatchMethod.TITLE_SIMILARITY, round(ratio, 4))

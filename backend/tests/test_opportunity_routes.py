@@ -30,25 +30,6 @@ NOW = datetime.now(UTC)
 
 
 @pytest.fixture
-async def cleanup_opportunities():  # type: ignore[no-untyped-def]
-    """Delete rows these tests commit.
-
-    The test database is session-scoped and sibling tests assert on the whole
-    table, so anything committed here has to be removed again.
-    """
-    created: list[uuid.UUID] = []
-    yield created
-
-    from app.db.session import get_session_factory
-    from sqlalchemy import delete
-
-    factory = get_session_factory()
-    async with factory() as session:
-        await session.execute(delete(Opportunity).where(Opportunity.id.in_(created)))
-        await session.commit()
-
-
-@pytest.fixture
 async def scored_opportunity(app, registered_user, cleanup_opportunities):  # type: ignore[no-untyped-def]
     """An opportunity carrying one score row and one evidence row."""
     from app.db.session import get_session_factory
@@ -117,6 +98,8 @@ async def test_detail_returns_score_and_evidence(client, registered_user, scored
     assert body["title"] == "Research Scientist, Alignment"
     assert body["score"]["overall_score"] == "91.50"
     assert body["score"]["dimensions"]["fit_score"] == "0.9200"
+    assert body["recommendation"] == "PURSUE"
+    assert body["explanation"] == {}
     assert body["compensation"] == {
         "min": "150000.00",
         "max": "210000.00",

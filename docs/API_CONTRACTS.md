@@ -99,6 +99,7 @@ Auth endpoints have a tighter rate-limit bucket than the rest of the API.
 | POST | `/goals` | Create. `objective_profile` selects the default scoring weights |
 | GET | `/goals/{id}` | Detail |
 | PATCH | `/goals/{id}` | Update (including `weights_override`) |
+| POST | `/goals/{id}/score` | Score every active opportunity against this goal |
 | DELETE | `/goals/{id}` | Delete |
 
 ```json
@@ -124,7 +125,7 @@ Auth endpoints have a tighter rate-limit bucket than the rest of the API.
 | GET | `/opportunities/{id}` | ✅ | Detail with scores, evidence, risks, missing requirements, freshness |
 | POST | `/opportunities/search` | ⏳ P4 | Objective-driven search; `202` + `run_id` when `mode=agentic`, `200` + results when `mode=index` |
 | POST | `/opportunities/investigate` | ⏳ P4 | Full investigation. `202 { run_id, trace_id, stream_url }` |
-| POST | `/opportunities/{id}/refresh` | ⏳ P2 | Re-fetch source, update freshness, may set `EXPIRED` |
+| POST | `/opportunities/{id}/refresh` | ✅ P2 | Recompute freshness from stored facts; may set `EXPIRED` |
 | POST | `/opportunities/{id}/evaluate` | ⏳ P4 | Re-score against a specified `goal_id` |
 | POST | `/opportunities/{id}/apply` | ⏳ P6 | Create an application draft; external submission requires approval |
 | POST | `/opportunities/{id}/feedback` | ⏳ P6 | Record a feedback signal |
