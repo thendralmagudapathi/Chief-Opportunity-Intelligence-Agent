@@ -22,6 +22,7 @@ from app.schemas.opportunity import (
     Compensation,
     EvidenceRead,
     Freshness,
+    OpportunityColumns,
     OpportunityFilters,
     OpportunityListItem,
     OpportunityRead,
@@ -116,19 +117,20 @@ async def read_opportunity(
     opportunity = row.opportunity
     evidence = await service.list_evidence(opportunity_id)
 
-    detail = OpportunityRead.model_validate(opportunity)
-    detail.compensation = Compensation(
-        min=opportunity.compensation_min,
-        max=opportunity.compensation_max,
-        currency=opportunity.compensation_currency,
-        period=opportunity.compensation_period,
+    return OpportunityRead(
+        **OpportunityColumns.model_validate(opportunity).model_dump(),
+        compensation=Compensation(
+            min=opportunity.compensation_min,
+            max=opportunity.compensation_max,
+            currency=opportunity.compensation_currency,
+            period=opportunity.compensation_period,
+        ),
+        freshness=Freshness(
+            discovered_at=opportunity.discovered_at,
+            last_verified_at=opportunity.last_verified_at,
+            expires_at=opportunity.expires_at,
+            score=opportunity.freshness_score,
+        ),
+        score=_to_score(row.score),
+        evidence=[EvidenceRead.model_validate(e) for e in evidence],
     )
-    detail.freshness = Freshness(
-        discovered_at=opportunity.discovered_at,
-        last_verified_at=opportunity.last_verified_at,
-        expires_at=opportunity.expires_at,
-        score=opportunity.freshness_score,
-    )
-    detail.score = _to_score(row.score)
-    detail.evidence = [EvidenceRead.model_validate(e) for e in evidence]
-    return detail

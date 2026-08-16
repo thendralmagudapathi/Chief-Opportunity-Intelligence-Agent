@@ -5,6 +5,11 @@ there is exactly one definition of "what statuses exist". They are stored as
 ``VARCHAR`` with a ``CHECK`` constraint rather than native PostgreSQL enums:
 adding a value then costs one cheap migration instead of a type rewrite, and the
 same DDL runs on SQLite in tests.
+
+Two casing conventions coexist on purpose. Lifecycle and taxonomy values are
+lowercase; ``ClaimType`` and ``Recommendation`` are uppercase because they are
+verdict vocabularies that models emit and reports quote verbatim, and keeping the
+label identical everywhere makes a mismatch obvious instead of silent.
 """
 
 from __future__ import annotations

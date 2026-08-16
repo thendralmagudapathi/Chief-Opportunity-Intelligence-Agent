@@ -95,7 +95,9 @@ class OpportunityListItem(ORMModel):
     recommendation: Recommendation | None = None
 
 
-class OpportunityRead(ORMModel):
+class OpportunityColumns(ORMModel):
+    """The part of the detail response that maps one-to-one onto the row."""
+
     id: uuid.UUID
     title: str
     category: OpportunityCategory
@@ -117,6 +119,16 @@ class OpportunityRead(ORMModel):
     posted_at: datetime | None
     deadline: datetime | None
     status: OpportunityStatus
+
+
+class OpportunityRead(OpportunityColumns):
+    """Detail response: row columns plus the parts the route assembles.
+
+    Never validate this against an ``Opportunity`` instance. ``evidence`` and the
+    relationship of the same name collide, so ``from_attributes`` would reach for
+    the relationship and emit lazy IO inside the async session. Validate
+    ``OpportunityColumns`` and pass the composed fields in explicitly.
+    """
 
     compensation: Compensation = Field(default_factory=Compensation)
     freshness: Freshness = Field(default_factory=Freshness)
