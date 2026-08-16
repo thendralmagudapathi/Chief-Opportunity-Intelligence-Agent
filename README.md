@@ -34,11 +34,22 @@ guessing.
 ```bash
 cp .env.example .env          # then set SECURITY__SECRET_KEY
 make up                       # postgres + pgvector, redis, api, frontend
-make migrate
 ```
 
+Without `make`, the equivalent is:
+
+```bash
+docker compose --env-file .env -f infra/docker/docker-compose.yml up -d --build
+```
+
+`--env-file` matters: it makes the root `.env` the source of substitution values,
+which is where the published host ports live. The API container applies
+migrations on start, so there is no separate migrate step in development.
+
 API at http://localhost:8000, interactive schema at http://localhost:8000/docs,
-dashboard at http://localhost:3000.
+dashboard at http://localhost:3000. If a port is already taken — a local
+PostgreSQL on 5432 is the usual culprit — override `POSTGRES_HOST_PORT` and
+friends in `.env` rather than stopping the other service.
 
 ### Local (backend and frontend separately)
 
@@ -110,4 +121,4 @@ infra/      Docker Compose stack and service images
 
 ## License
 
-Not yet licensed. All rights reserved.
+MIT — see [`LICENSE`](LICENSE).
