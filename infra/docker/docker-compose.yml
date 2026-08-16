@@ -86,6 +86,46 @@ services:
       api: { condition: service_started }
     logging: *default-logging
 
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+      target: development
+    env_file: [../../.env]
+    environment:
+      DATABASE__URL: postgresql+asyncpg://${POSTGRES_USER:-oia}:${POSTGRES_PASSWORD:-oia}@postgres:5432/${POSTGRES_DB:-oia}
+      REDIS__ENABLED: "true"
+      REDIS__URL: redis://redis:6379/0
+      WORKERS__ENABLED: "true"
+      WORKERS__BROKER_URL: redis://redis:6379/1
+      WORKERS__RESULT_BACKEND: redis://redis:6379/2
+      MODELS__BASE_URL: ${MODELS_HOST_URL:-http://ollama:11434}
+    volumes:
+      - ../../backend:/app:cached
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: celery -A app.workers.celery_app worker --loglevel=INFO
+    logging: *default-logging
+
+  beat:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+      target: development
+    env_file: [../../.env]
+    environment:
+      DATABASE__URL: postgresql+asyncpg://${POSTGRES_USER:-oia}:${POSTGRES_PASSWORD:-oia}@postgres:5432/${POSTGRES_DB:-oia}
+      WORKERS__ENABLED: "true"
+      WORKERS__BROKER_URL: redis://redis:6379/1
+      WORKERS__RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ../../backend:/app:cached
+    depends_on:
+      redis: { condition: service_healthy }
+    command: celery -A app.workers.celery_app beat --loglevel=INFO
+    logging: *default-logging
+
   # Optional local inference. Start with:  docker compose --profile llm up
   ollama:
     image: ollama/ollama:latest

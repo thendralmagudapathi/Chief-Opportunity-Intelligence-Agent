@@ -133,6 +133,7 @@ class InvestigationStartResponse(BaseModel):
     run_id: uuid.UUID
     trace_id: str
     stream_url: str
+    dispatch_mode: str = "background"
 
 
 class GraphEvent(BaseModel):

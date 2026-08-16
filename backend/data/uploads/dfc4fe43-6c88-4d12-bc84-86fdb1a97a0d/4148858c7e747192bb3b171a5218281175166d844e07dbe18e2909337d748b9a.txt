@@ -1,0 +1,13 @@
+Professional Summary
+Experienced AI engineer based in Bangalore, India with 6 years building production ML systems.
+
+Skills
+- PyTorch and TensorFlow for model training
+- AWS and GCP for deployment
+- Python, FastAPI, PostgreSQL
+
+Work Authorization
+Eligible to work in India. Requires visa sponsorship for Germany.
+
+Compensation
+Target compensation is 90000 EUR per year for senior roles in the EU.

@@ -32,6 +32,7 @@ from app.schemas.opportunity import (
     ScoreRead,
 )
 from app.services.investigation_service import run_investigation_background
+from app.workers.enqueue import enqueue_investigation
 
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
@@ -84,11 +85,18 @@ async def investigate_opportunities(
     background: BackgroundTasks,
 ) -> InvestigationStartResponse:
     run_id, trace_id = await investigation.start_and_commit(user.id, payload)
-    background.add_task(run_investigation_background, run_id, user.id)
+    dispatch = enqueue_investigation(
+        settings,
+        background=background,
+        run_id=run_id,
+        user_id=user.id,
+        inline_runner=run_investigation_background,
+    )
     return InvestigationStartResponse(
         run_id=run_id,
         trace_id=trace_id,
         stream_url=f"{settings.api_v1_prefix}/agent-runs/{run_id}/stream",
+        dispatch_mode=dispatch,
     )
 
 

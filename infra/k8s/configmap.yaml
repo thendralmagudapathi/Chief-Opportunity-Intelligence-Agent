@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oia-config
+  namespace: oia
+data:
+  ENVIRONMENT: production
+  OBSERVABILITY__LOG_FORMAT: json
+  REDIS__ENABLED: "true"
+  WORKERS__ENABLED: "true"
+  INFERENCE__GATEWAY_ENABLED: "true"
+  INFERENCE__SEMANTIC_CACHE_ENABLED: "true"
+  MODELS__PROVIDER: vllm

@@ -187,6 +187,29 @@ class FineTuningSettings(BaseModel):
     noise_band: float = Field(default=0.02, ge=0.0, le=0.25)
 
 
+class InferenceSettings(BaseModel):
+    """Model gateway, semantic cache and cost accounting (Phase 9)."""
+
+    gateway_enabled: bool = True
+    semantic_cache_enabled: bool = False
+    semantic_cache_ttl_s: int = Field(default=3600, ge=60)
+    fallback_chain: str = ""
+    input_cost_per_1k: float = Field(default=0.0, ge=0.0)
+    output_cost_per_1k: float = Field(default=0.0, ge=0.0)
+    vllm_base_url: str = "http://localhost:8001"
+
+
+class WorkersSettings(BaseModel):
+    """Celery worker configuration (Phase 10)."""
+
+    enabled: bool = False
+    broker_url: str = "redis://localhost:6379/1"
+    result_backend: str = "redis://localhost:6379/2"
+    concurrency: int = Field(default=2, ge=1, le=32)
+    investigation_queue: str = "investigations"
+    maintenance_queue: str = "maintenance"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
@@ -214,6 +237,8 @@ class Settings(BaseSettings):
     egress: EgressSettings = Field(default_factory=EgressSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     finetuning: FineTuningSettings = Field(default_factory=FineTuningSettings)
+    inference: InferenceSettings = Field(default_factory=InferenceSettings)
+    workers: WorkersSettings = Field(default_factory=WorkersSettings)
 
     @property
     def docs_url(self) -> str | None:

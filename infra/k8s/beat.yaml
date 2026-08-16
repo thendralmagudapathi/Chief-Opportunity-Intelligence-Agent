@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oia-beat
+  namespace: oia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oia-beat
+  template:
+    metadata:
+      labels:
+        app: oia-beat
+    spec:
+      containers:
+        - name: beat
+          image: oia-backend:latest
+          command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO"]
+          envFrom:
+            - configMapRef:
+                name: oia-config
+            - secretRef:
+                name: oia-secrets
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oia-migrate
+  namespace: oia
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: oia-backend:latest
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef:
+                name: oia-secrets

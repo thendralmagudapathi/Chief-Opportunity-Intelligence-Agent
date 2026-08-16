@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
-from app.agents.llm.fake import FakeLLMProvider
-from app.agents.llm.ollama import OllamaLLMProvider
 from app.agents.llm.protocols import LLMProvider
 from app.core.config import Settings
-from app.finetuning.registry import active_extraction_model
+from app.inference.gateway import GatewayLLMProvider, build_provider_chain
+from app.inference.semantic_cache import build_semantic_cache
 
 
 def build_llm_provider(settings: Settings) -> LLMProvider:
-    extraction_model = active_extraction_model(settings)
-    if settings.models.provider == "fake":
-        return FakeLLMProvider(model_name=extraction_model)
-    if settings.models.provider == "ollama":
-        return OllamaLLMProvider(
-            settings.models,
-            extraction_model=extraction_model if settings.finetuning.enabled else None,
-        )
-    raise ValueError(f"Unsupported model provider: {settings.models.provider}")
+    if not settings.inference.gateway_enabled:
+        return build_provider_chain(settings)[0]
+    cache = build_semantic_cache(
+        enabled=settings.inference.semantic_cache_enabled,
+        redis_url=settings.redis.url if settings.redis.enabled else None,
+        ttl_s=settings.inference.semantic_cache_ttl_s,
+    )
+    return GatewayLLMProvider(
+        settings=settings,
+        providers=build_provider_chain(settings),
+        cache=cache,
+    )

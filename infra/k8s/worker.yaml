@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oia-worker
+  namespace: oia
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oia-worker
+  template:
+    metadata:
+      labels:
+        app: oia-worker
+    spec:
+      containers:
+        - name: worker
+          image: oia-backend:latest
+          command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO"]
+          envFrom:
+            - configMapRef:
+                name: oia-config
+            - secretRef:
+                name: oia-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: oia-worker
+  namespace: oia
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: oia-worker
+  minReplicas: 1
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75

@@ -45,10 +45,33 @@ async def ready(session: SessionDep, settings: SettingsDep, response: Response) 
     if settings.redis.enabled:
         checks.append(await _check_redis(settings.redis.url))
 
+    if settings.workers.enabled:
+        checks.append(await _check_broker(settings.workers.broker_url))
+
     overall = "ok" if all(c.status == "ok" for c in checks) else "error"
     if overall != "ok":
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HealthResponse(status=overall, checks=checks)
+
+
+async def _check_broker(url: str) -> HealthCheck:
+    started = time.perf_counter()
+    try:
+        import redis.asyncio as redis
+
+        client = redis.from_url(url, socket_connect_timeout=2)
+        try:
+            await client.ping()
+        finally:
+            await client.aclose()
+        return HealthCheck(
+            name="celery_broker",
+            status="ok",
+            latency_ms=round((time.perf_counter() - started) * 1000, 2),
+        )
+    except Exception as exc:
+        logger.error("readiness_broker_failed", exc_info=exc)
+        return HealthCheck(name="celery_broker", status="error", detail="unreachable")
 
 
 async def _check_redis(url: str) -> HealthCheck:

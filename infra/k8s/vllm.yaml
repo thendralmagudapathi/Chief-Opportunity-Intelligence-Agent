@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oia-vllm
+  namespace: oia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oia-vllm
+  template:
+    metadata:
+      labels:
+        app: oia-vllm
+    spec:
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - --model
+            - Qwen/Qwen2.5-7B-Instruct
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm
+  namespace: oia
+spec:
+  selector:
+    app: oia-vllm
+  ports:
+    - port: 8000
+      targetPort: 8000
