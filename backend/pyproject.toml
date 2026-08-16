@@ -116,7 +116,7 @@ disallow_untyped_decorators = false        # FastAPI/SQLAlchemy decorators
 exclude = ["app/db/migrations/versions/"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "argon2.*", "pypdf.*", "docx.*", "sentence_transformers.*", "langgraph.*", "langchain_core.*", "mcp.*", "mcp_types.*"]
+module = ["pgvector.*", "argon2.*", "pypdf.*", "docx.*", "sentence_transformers.*", "langgraph.*", "langchain_core.*", "mcp.*", "mcp_types.*", "opentelemetry.*", "mlflow.*", "langfuse.*", "ragas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

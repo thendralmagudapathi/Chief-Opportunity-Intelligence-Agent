@@ -20,9 +20,7 @@ def is_borderline(*, overall_score: float, recommendation: Recommendation) -> bo
     return BORDERLINE_SCORE_MIN <= overall_score <= BORDERLINE_SCORE_MAX
 
 
-def apply_confidence_floor(
-    recommendation: Recommendation, confidence: float
-) -> Recommendation:
+def apply_confidence_floor(recommendation: Recommendation, confidence: float) -> Recommendation:
     if confidence < CONFIDENCE_FLOOR and recommendation in (
         Recommendation.STRONGLY_PURSUE,
         Recommendation.PURSUE,

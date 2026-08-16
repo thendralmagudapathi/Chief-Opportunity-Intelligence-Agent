@@ -93,18 +93,58 @@ async def run_investigation_background(run_id: uuid.UUID, user_id: uuid.UUID) ->
         }
         config = {"configurable": {"thread_id": str(run_id)}}
         try:
-            if event_store.is_cancelled(run_id):
-                await service.runs.mark_cancelled(run)
-                await session.commit()
-                return
-            final = await graph.ainvoke(initial, config=config)
-            report = final.get("report")
-            await service.runs.mark_succeeded(
-                run, {"report": report, "events": final.get("events", [])}
-            )
+            from app.observability.cost import InvestigationCostTracker
+            from app.observability.metrics import StageTimer, registry
+            from app.observability.tracing import async_span
+
+            cost_tracker = InvestigationCostTracker()
+            async with async_span(
+                "investigation.run",
+                run_id=str(run_id),
+                trace_id=run.trace_id,
+                user_id=str(user_id),
+            ):
+                if event_store.is_cancelled(run_id):
+                    await service.runs.mark_cancelled(run)
+                    await session.commit()
+                    return
+                timer = StageTimer("investigation")
+                final = await graph.ainvoke(initial, config=config)
+                timer.finish()
+                report = final.get("report")
+                events = final.get("events", [])
+                await service.runs.mark_succeeded(
+                    run,
+                    {"report": report, "events": events, "trace_id": run.trace_id},
+                )
+                cost_tracker.for_run(str(run_id)).emit()
+                registry.increment("investigations_succeeded")
             emit("done", {"run_id": str(run_id), "status": AgentRunStatus.SUCCEEDED.value})
+
+            from app.evaluation.trace_audit import audit_investigation_trace
+            from app.observability.langfuse import log_trace_event
+
+            audit = await audit_investigation_trace(session, run_id)
+            if not audit.complete:
+                logger.warning(
+                    "investigation_trace_incomplete",
+                    run_id=str(run_id),
+                    missing_stages=audit.missing_stages,
+                    missing_tasks=audit.missing_tasks,
+                )
+            log_trace_event(
+                "investigation.complete",
+                metadata={
+                    "run_id": str(run_id),
+                    "trace_complete": audit.complete,
+                    "tool_calls": audit.tool_call_count,
+                },
+            )
         except Exception as exc:
             logger.error("investigation_failed", run_id=str(run_id), exc_info=exc)
+            from app.observability.metrics import registry
+
+            registry.increment("investigations_failed")
             await service.runs.mark_failed(run, str(exc))
             emit(
                 "done",

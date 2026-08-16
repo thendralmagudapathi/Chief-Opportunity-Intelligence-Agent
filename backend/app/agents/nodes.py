@@ -398,8 +398,7 @@ async def decide_node(state: InvestigationState, ctx: RunContext) -> dict[str, A
 async def report_node(state: InvestigationState, ctx: RunContext) -> dict[str, Any]:
     recommendations = [AgentDecision.model_validate(item) for item in state.get("decisions", [])]
     counterpoints = [
-        ContrarianAnalysis.model_validate(item)
-        for item in state.get("counterpoints", {}).values()
+        ContrarianAnalysis.model_validate(item) for item in state.get("counterpoints", {}).values()
     ]
     report = FinalOpportunityReport(
         objective=state["objective"],

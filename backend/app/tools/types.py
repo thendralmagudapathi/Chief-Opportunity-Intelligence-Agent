@@ -34,14 +34,17 @@ class ToolOutcome(BaseModel):
     ok: bool
     data: dict[str, Any] | None = None
     error: str | None = None
-    error_code: Literal[
-        "invalid_arguments",
-        "permission_denied",
-        "budget_exhausted",
-        "rate_limited",
-        "timeout",
-        "not_found",
-        "validation_error",
-        "dependency_unavailable",
-        "internal_error",
-    ] | None = None
+    error_code: (
+        Literal[
+            "invalid_arguments",
+            "permission_denied",
+            "budget_exhausted",
+            "rate_limited",
+            "timeout",
+            "not_found",
+            "validation_error",
+            "dependency_unavailable",
+            "internal_error",
+        ]
+        | None
+    ) = None

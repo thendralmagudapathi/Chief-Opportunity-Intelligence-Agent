@@ -9,6 +9,7 @@ from app.api.v1.routes import (
     agents,
     auth,
     documents,
+    evaluations,
     feedback,
     goals,
     health,
@@ -28,3 +29,4 @@ api_router.include_router(agent_runs.router)
 api_router.include_router(agents.router)
 api_router.include_router(feedback.router)
 api_router.include_router(outcomes.router)
+api_router.include_router(evaluations.router)

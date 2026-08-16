@@ -23,6 +23,8 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.db.constants import EMBEDDING_DIM
 from app.db.session import dispose_engine
+from app.observability.langfuse import configure_langfuse
+from app.observability.tracing import setup_tracing
 
 logger = get_logger(__name__)
 
@@ -57,6 +59,8 @@ def _assert_schema_compatibility(settings: Settings) -> None:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings)
+    setup_tracing(settings)
+    configure_langfuse(settings)
     _assert_schema_compatibility(settings)
 
     app = FastAPI(

@@ -7,6 +7,7 @@ guard (``egress.py``) used by tool-layer HTTP fetches.
 Scheduled for Phase 6+: the injection classifier and quarantine pipeline.
 See docs/SECURITY_MODEL.md for the full control matrix.
 """
+
 from app.security.egress import SafeHttpClient, validate_url
 from app.security.trust import (
     ExternalContent,

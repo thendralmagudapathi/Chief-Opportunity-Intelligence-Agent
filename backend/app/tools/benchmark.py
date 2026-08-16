@@ -90,6 +90,10 @@ def selection_accuracy(registry: ToolRegistry) -> float:
     return hits / len(_SELECTION_CASES)
 
 
+def selection_cases() -> tuple[ToolSelectionCase, ...]:
+    return _SELECTION_CASES
+
+
 def argument_cases() -> tuple[ToolArgumentCase, ...]:
     import uuid
 
