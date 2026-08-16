@@ -18,6 +18,7 @@ from app.core.logging import get_logger
 from app.db.session import get_session_factory
 from app.models.enums import AgentRunStatus
 from app.services.agent_run_service import AgentRunService
+from app.tools.factory import attach_tools
 
 logger = get_logger(__name__)
 
@@ -73,6 +74,9 @@ async def run_investigation_background(run_id: uuid.UUID, user_id: uuid.UUID) ->
             user_id=user_id,
             emit=emit,
         )
+        tool_ctx, executor = attach_tools(ctx, budget=run.budget, goal_id=run.goal_id)
+        ctx.tool_ctx = tool_ctx
+        ctx.tools = executor
         graph = build_investigation_graph(ctx)
         initial: InvestigationState = {
             "run_id": str(run_id),

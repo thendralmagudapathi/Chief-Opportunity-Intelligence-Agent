@@ -70,21 +70,46 @@ async def understand_node(state: InvestigationState, ctx: RunContext) -> dict[st
 
 async def load_context_node(state: InvestigationState, ctx: RunContext) -> dict[str, Any]:
     ctx.emit("stage", _event("load_context", "running", "Loading profile context"))
-    retrieval = build_retrieval_service(ctx.session, ctx.settings)
-    result = await retrieval.search_profile(
-        user_id=ctx.user_id, query=state["objective"], rerank=True
-    )
-    passages = [
-        {"content": passage.content, "score": passage.score, "channel": passage.channel}
-        for passage in result.passages
-    ]
+    if ctx.tools is not None and ctx.tool_ctx is not None:
+        outcome = await ctx.tools.invoke(
+            "search_user_profile",
+            {"query": state["objective"], "top_k": ctx.settings.rag.rerank_top_n},
+            ctx.tool_ctx,
+        )
+        if not outcome.ok or outcome.data is None:
+            return {
+                "profile_context": [],
+                "degraded": True,
+                "errors": [outcome.error or "Profile search failed"],
+                "events": [_event("load_context", "failed", "Profile search failed")],
+            }
+        passages = outcome.data.get("passages", [])
+    else:
+        retrieval = build_retrieval_service(ctx.session, ctx.settings)
+        result = await retrieval.search_profile(
+            user_id=ctx.user_id, query=state["objective"], rerank=True
+        )
+        passages = [
+            {"content": passage.content, "score": passage.score, "channel": passage.channel}
+            for passage in result.passages
+        ]
+        degraded = result.degraded
+        ctx.emit(
+            "stage",
+            _event("load_context", "done", "Profile context loaded", passages=len(passages)),
+        )
+        return {
+            "profile_context": passages,
+            "degraded": degraded,
+            "events": [_event("load_context", "done", f"Loaded {len(passages)} passages")],
+        }
     ctx.emit(
         "stage",
         _event("load_context", "done", "Profile context loaded", passages=len(passages)),
     )
     return {
         "profile_context": passages,
-        "degraded": result.degraded,
+        "degraded": bool(outcome.data.get("degraded")),
         "events": [_event("load_context", "done", f"Loaded {len(passages)} passages")],
     }
 
@@ -236,13 +261,28 @@ async def score_node(state: InvestigationState, ctx: RunContext) -> dict[str, An
     goal = await ctx.session.get(Goal, uuid.UUID(state["goal_id"]))
     if goal is None:
         return {"errors": ["Goal not found"], "scores": {}}
-    profile = await _profile_for(ctx)
-    scoring = ScoringService(ctx.session)
     scores: dict[str, Any] = {}
     for candidate in state.get("candidates", []):
-        opportunity = await ctx.session.get(Opportunity, uuid.UUID(candidate["id"]))
+        opp_id = uuid.UUID(candidate["id"])
+        if ctx.tools is not None and ctx.tool_ctx is not None:
+            outcome = await ctx.tools.invoke(
+                "calculate_opportunity_score",
+                {"opportunity_id": str(opp_id), "goal_id": state["goal_id"]},
+                ctx.tool_ctx,
+            )
+            if outcome.ok and outcome.data is not None:
+                scores[str(opp_id)] = {
+                    "overall_score": outcome.data["overall_score"],
+                    "confidence": outcome.data["confidence"],
+                    "recommendation": outcome.data["recommendation"]
+                    or Recommendation.CONSIDER.value,
+                }
+            continue
+        opportunity = await ctx.session.get(Opportunity, opp_id)
         if opportunity is None:
             continue
+        profile = await _profile_for(ctx)
+        scoring = ScoringService(ctx.session)
         row = await scoring.score_opportunity(opportunity, goal, profile=profile)
         scores[str(opportunity.id)] = {
             "overall_score": float(row.overall_score),

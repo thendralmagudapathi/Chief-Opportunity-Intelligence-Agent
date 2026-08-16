@@ -156,6 +156,15 @@ class AgentSettings(BaseModel):
     confidence_floor: float = Field(default=0.35, ge=0.0, le=1.0)
 
 
+class EgressSettings(BaseModel):
+    """Outbound fetch limits for tool-layer HTTP (docs/SECURITY_MODEL.md §6)."""
+
+    timeout_s: float = Field(default=30.0, gt=0)
+    max_response_bytes: int = Field(default=2_000_000, ge=1024)
+    user_agent: str = "OIA-Bot/0.1 (+https://github.com/oia)"
+    host_rate_limit_per_minute: int = Field(default=30, ge=1)
+
+
 class ObservabilitySettings(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["json", "console"] = "console"
@@ -192,6 +201,7 @@ class Settings(BaseSettings):
     rag: RagSettings = Field(default_factory=RagSettings)
     models: ModelSettings = Field(default_factory=ModelSettings)
     agents: AgentSettings = Field(default_factory=AgentSettings)
+    egress: EgressSettings = Field(default_factory=EgressSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @property

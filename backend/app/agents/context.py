@@ -22,3 +22,5 @@ class RunContext:
     trace_id: str
     user_id: uuid.UUID
     emit: Callable[[str, dict[str, Any]], None] = field(default=lambda _event, _data: None)
+    tool_ctx: Any | None = None
+    tools: Any | None = None
